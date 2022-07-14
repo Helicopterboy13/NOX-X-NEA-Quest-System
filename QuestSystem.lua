@@ -19,17 +19,26 @@ if CLIENT then
 
     end)
 
+    local QSDailyCompleted = 1
+
     local QSMenuButtons = function(QSMenuTab, FrameW, FrameH, frame)
         if QSMenuTab == "Daily" then
             print("Daily Quests Render")
 
-            local myProgressBar = vgui.Create( "DProgressBar",frame)
-            myProgressBar:SetSize(FrameW/6, FrameH/10)
-            myProgressBar:SetPos( 25, 25 )
-            myProgressBar:SetMin( 0 )
-            myProgressBar:SetMax(16)
-            myProgressBar:SetValue(12)
-            
+            local QuestsCompleted = vgui.Create( "DProgressBar",frame)
+            QuestsCompleted:SetSize(FrameW/6, FrameH/14)
+            QuestsCompleted:SetPos( FrameW*0.413, FrameH*0.2 )
+            QuestsCompleted:SetMin(0)
+            QuestsCompleted:SetMax(4)
+            QuestsCompleted:SetValue(QSDailyCompleted)
+
+            local TimeLeft = vgui.Create( "DProgressBar",frame)
+            TimeLeft:SetSize(FrameW/6, FrameH/14)
+            TimeLeft:SetPos( FrameW*0.14, FrameH*0.2 )
+            TimeLeft:SetMin(0)
+            TimeLeft:SetMax(14400)
+            TimeLeft:SetValue(5555)
+
 
 
             function CloseWindow()
@@ -109,23 +118,42 @@ if CLIENT then
             
             draw.RoundedBox(5,FrameW/140,FrameH/80,InnerW,InnerH,Color(36,36,36,245)) -- 2nd layer of different colour to create a 4 pixel border on the window, this is main grey, above is border grey
 
-            draw.RoundedBox(0,FrameW/140+1,FrameH/80,InnerW,InnerH/11,Color(180,10,20,245))
+            draw.RoundedBox(0,FrameW/140+1,FrameH/80,InnerW,InnerH/11,Color(150,10,40,245))
 
             draw.SimpleText(
                 "Noxifier Quest System",
                 "TitleFontHeli",
                 FrameW*0.225, 
                 FrameH/22, 
-                Color(40,40,150),
+                Color(230,240,255),
                 0,
                 1
             )
 
+            if Type == "Daily" then 
+                draw.SimpleText(
+                "Quests Completed",
+                "contFontHeli",
+                FrameW*0.401, 
+                FrameH/5.5, 
+                Color(180,40,40),
+                0,
+                1
+            )
+                draw.SimpleText(
+                "Time Untill Reset",
+                "contFontHeli",
+                FrameW*0.138, 
+                FrameH/5.5, 
+                Color(180,40,40),
+                0,
+                1
+                )
 
-
+            end
         end
 
-        QSMenuButtons("Daily", FrameW, FrameH, frame) -- Call the Buttons, draw em as daily
+        QSMenuButtons(Type, FrameW, FrameH, frame) -- Call the Buttons, draw em as daily
 
     end
 end

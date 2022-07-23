@@ -1,3 +1,5 @@
+
+
 if SERVER then
     util.AddNetworkString("QSMenuCaller")
     hook.Add("PlayerSay", "QuestMenuCall", function(ply,text)
@@ -19,13 +21,76 @@ if CLIENT then
 
     end)
 
+    local TextColor = Color(180,40,40)
+
+    local DRerollCost = 50000
+
+    local WRerollCost = 250000
+
+    local Challenge = 1
+
+    local QSMenuText = function(QSMenuTab, FrameW, FrameH, frame)
+        if QSMenuTab == "Daily" then
+            draw.SimpleText(
+            "Quests Completed",
+            "contFontHeli",
+            FrameW*0.401,
+            FrameH/5.5, 
+            TextColor,
+            0,
+            1
+            )
+
+            draw.SimpleText(
+            "Time Untill Reset",
+            "contFontHeli",
+            FrameW*0.138, 
+            FrameH/5.5, 
+            TextColor,
+            0,
+            1
+            )
+
+            draw.SimpleText(
+            "Reroll Price: " .. tostring(DRerollCost),
+            "contFontHeli",
+            FrameW*0.4,
+            FrameH*0.85,
+            TextColor,
+            0,
+            1
+        )
+
+        draw.SimpleText(
+            "Challenge Rating",
+            "contFontHeli",
+            FrameW*0.725,
+            FrameH/5.5,
+            TextColor,
+            0,
+            1
+        )
+
+        draw.SimpleText(
+            tostring(Challenge),
+            "TitleFontHeli",
+            FrameW*0.8,
+            FrameH/4.2,
+            TextColor,
+            0,
+            1
+        )
+
+        end
+    end
+
     local QSDailyCompleted = 1
 
     local QSMenuButtons = function(QSMenuTab, FrameW, FrameH, frame)
         if QSMenuTab == "Daily" then
             print("Daily Quests Render")
 
-            local QuestsCompleted = vgui.Create( "DProgressBar",frame)
+            local QuestsCompleted = vgui.Create( "DProgressBar", frame)
             QuestsCompleted:SetSize(FrameW/6, FrameH/14)
             QuestsCompleted:SetPos( FrameW*0.413, FrameH*0.2 )
             QuestsCompleted:SetMin(0)
@@ -59,7 +124,7 @@ if CLIENT then
             function QSReroll()
                 print("Reroll them Quests")
                 -- Deduct Credits
-                -- Rerun the Quest Assaignment algorithm
+                QuestSystem:QuestAssaign(QSD1, QSD2, QSD3, QSD4, nil, nil, Challenge, QSMenuTab)
             end
     
             local RerollButton = vgui.Create("DButton", frame)
@@ -118,7 +183,7 @@ if CLIENT then
             
             draw.RoundedBox(5,FrameW/140,FrameH/80,InnerW,InnerH,Color(36,36,36,245)) -- 2nd layer of different colour to create a 4 pixel border on the window, this is main grey, above is border grey
 
-            draw.RoundedBox(0,FrameW/140+1,FrameH/80,InnerW,InnerH/11,Color(150,10,40,245))
+            draw.RoundedBox(0,FrameW/140+1,FrameH/80,InnerW,InnerH/11,Color(150,20,40,245))
 
             draw.SimpleText(
                 "Noxifier Quest System",
@@ -130,27 +195,8 @@ if CLIENT then
                 1
             )
 
-            if Type == "Daily" then 
-                draw.SimpleText(
-                "Quests Completed",
-                "contFontHeli",
-                FrameW*0.401, 
-                FrameH/5.5, 
-                Color(180,40,40),
-                0,
-                1
-            )
-                draw.SimpleText(
-                "Time Untill Reset",
-                "contFontHeli",
-                FrameW*0.138, 
-                FrameH/5.5, 
-                Color(180,40,40),
-                0,
-                1
-                )
+            QSMenuText(Type,FrameW,FrameH, frame)
 
-            end
         end
 
         QSMenuButtons(Type, FrameW, FrameH, frame) -- Call the Buttons, draw em as daily

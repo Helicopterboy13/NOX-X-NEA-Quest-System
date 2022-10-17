@@ -1,4 +1,4 @@
-
+include ("QSAssaignment.lua")
 
 if SERVER then
     util.AddNetworkString("QSMenuCaller")
@@ -124,7 +124,7 @@ if CLIENT then
             function QSReroll()
                 print("Reroll them Quests")
                 -- Deduct Credits
-                QuestSystem:QuestAssaign(QSD1, QSD2, QSD3, QSD4, nil, nil, Challenge, QSMenuTab)
+                Quests:Assaign(QSD1, QSD2, QSD3, QSD4, nil, nil, Challenge, QSMenuTab)
             end
     
             local RerollButton = vgui.Create("DButton", frame)

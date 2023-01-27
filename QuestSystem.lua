@@ -1,4 +1,7 @@
-include ("QSAssaignment.lua")
+
+dofile("QSAssaignment.lua")
+
+Quests:Test()
 
 if SERVER then
     util.AddNetworkString("QSMenuCaller")
@@ -21,6 +24,10 @@ if CLIENT then
 
     end)
 
+    Quests = Quests or {}
+
+    Quests:Test()
+
     local TextColor = Color(180,40,40)
 
     local DRerollCost = 50000
@@ -31,6 +38,7 @@ if CLIENT then
 
     local QSMenuText = function(QSMenuTab, FrameW, FrameH, frame)
         if QSMenuTab == "Daily" then
+
             draw.SimpleText(
             "Quests Completed",
             "contFontHeli",
@@ -59,9 +67,9 @@ if CLIENT then
             TextColor,
             0,
             1
-        )
+            )
 
-        draw.SimpleText(
+            draw.SimpleText(
             "Challenge Rating",
             "contFontHeli",
             FrameW*0.725,
@@ -69,9 +77,9 @@ if CLIENT then
             TextColor,
             0,
             1
-        )
+            )
 
-        draw.SimpleText(
+            draw.SimpleText(
             tostring(Challenge),
             "TitleFontHeli",
             FrameW*0.8,
@@ -79,7 +87,7 @@ if CLIENT then
             TextColor,
             0,
             1
-        )
+            )
 
         end
     end

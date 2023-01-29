@@ -1,5 +1,4 @@
-
-dofile("QSAssaignment.lua")
+include ("QSAssaignment.lua")
 
 Quests:Test()
 
@@ -60,7 +59,7 @@ if CLIENT then
             )
 
             draw.SimpleText(
-            "Reroll Price: " .. tostring(DRerollCost),
+            "Reroll Price: " .. tostring(DRerollCost), -- Make into 2 different texts, and put on the button
             "contFontHeli",
             FrameW*0.4,
             FrameH*0.85,
@@ -132,7 +131,11 @@ if CLIENT then
             function QSReroll()
                 print("Reroll them Quests")
                 -- Deduct Credits
-                Quests:Assaign(QSD1, QSD2, QSD3, QSD4, nil, nil, Challenge, QSMenuTab)
+                if Type == "Daily" then
+                    Quests:Assaign(QSD1, QSD2, QSD3, QSD4, nil, nil, Challenge, Type)
+                elseif Type == "Weekly" then
+                    Quests:Assaign(QSW1, QSW2, QSW3, QSW4, QSW5, QSW6, Challenge, Type)
+                end
             end
     
             local RerollButton = vgui.Create("DButton", frame)
@@ -169,6 +172,45 @@ if CLIENT then
     end
 
 
+    local QSQuestsText = function(Type, FrameW, FrameH, frame, QSD1, QSD2, QSD3, QSD4, QSW1, QSW2, QSW3, QSW4, QSW5, QSW6)
+
+        QColour = Color(80,15,15,245)
+
+        if Type == "Daily" then
+            if not QSD1 or  not QSD2 or  not QSD3 or  not QSD4 then
+                QSD1, QSD2, QSD3, QSD4 = Quests:Assaign(QSD1, QSD2, QSD3, QSD4, nil, nil, Challenge, Type)
+            end
+
+            draw.RoundedBox(3,FrameW*0.435/22, FrameH*1.4/5, FrameW/2.1, FrameH/3.6, QColour) -- Quest 1
+           
+
+
+            draw.RoundedBox(3,FrameW*11.15/22, FrameH*1.4/5, FrameW/2.1, FrameH/3.6, QColour) -- Quest 2
+
+            
+
+            draw.RoundedBox(3,FrameW*0.435/22, FrameH*2.85/5, FrameW/2.1, FrameH/3.6, QColour) -- Quest 3
+
+
+
+            draw.RoundedBox(3,FrameW*11.15/22, FrameH*2.85/5, FrameW/2.1, FrameH/3.6, QColour) -- Quest 4
+
+
+
+        elseif Type == "Weekly" then
+            if QSW1 == nil or QSW2 == nil or QSW3 == nil or QSW4 == nil or QSW5 == nil or QSW6 == nil then
+                QSW1, QSW2, QSW3, QSW4, QSW5, QSW6 = Quests:Assaign(QSW1, QSW2, QSW3, QSW4, QSW5, QSW6, Challenge, Type)
+            end
+
+
+
+        elseif Type == "LifeTime" then
+            print("Lifetime Go Brrr")
+        end
+
+    end
+
+
     function QSMenuCall(Type)
         -- create the box window and set the settings for it
         local frame = vgui.Create("DFrame")
@@ -191,7 +233,7 @@ if CLIENT then
             
             draw.RoundedBox(5,FrameW/140,FrameH/80,InnerW,InnerH,Color(36,36,36,245)) -- 2nd layer of different colour to create a 4 pixel border on the window, this is main grey, above is border grey
 
-            draw.RoundedBox(0,FrameW/140+1,FrameH/80,InnerW,InnerH/11,Color(150,20,40,245))
+            draw.RoundedBox(0,FrameW/140+1,FrameH/80,InnerW,InnerH/11,Color(150,20,40,245)) -- The Title Box
 
             draw.SimpleText(
                 "Noxifier Quest System",
@@ -201,11 +243,15 @@ if CLIENT then
                 Color(230,240,255),
                 0,
                 1
-            )
+            ) -- Title Function
+
+            QSQuestsText(Type, FrameW, FrameH, frame, QSD1, QSD2, QSD3, QSD4, QSW1, QSW2, QSW3, QSW4, QSW5, QSW6)
 
             QSMenuText(Type,FrameW,FrameH, frame)
 
         end
+
+        -- QSQuestsButtons(Type, FrameW, FrameH, frame, QSD1, QSD2, QSD3, QSD4, QSW1, QSW2, QSW3, QSW4, QSW5, QSW6)
 
         QSMenuButtons(Type, FrameW, FrameH, frame) -- Call the Buttons, draw em as daily
 

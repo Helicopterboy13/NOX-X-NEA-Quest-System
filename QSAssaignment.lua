@@ -1,7 +1,7 @@
 Quests = Quests or {}
 QuestFormat = QuestFormat or {}
 
-function QuestFormat:new(o, Challenge, Title, Description, Req, Condition, Conditional)
+function QuestFormat:new(o, Challenge, Title, Description, Condition)
     o = o or {}
     setmetatable(o, self)
     self.__index = self
@@ -9,11 +9,22 @@ function QuestFormat:new(o, Challenge, Title, Description, Req, Condition, Condi
     self.Challenge = Challenge
     self.Title = Title
     self.Description = Description
-    self.Req = Req
     self.Condition = Condition
-    self.Conditional = Conditional
+    return o
 end
     
+function QuestFormat:Get(Target)
+    if Target == "Title" then
+        return self.Title
+    elseif Target == "Description" then
+        return self.Description
+    elseif Target == "Progress" then
+        return self.Progress
+    elseif Target == "Challenge" then
+        return self.Challenge
+    end
+end
+
 function QuestFormat:Increment()
     if self.Progress == -1 then
         QuestFormat:Remove()
@@ -45,24 +56,40 @@ function QuestFormat:Remove()
 end
 
 function QuestFormat:Completed()
-    print("Well Done you Completed a Quest of Challenge Rating " .. string(self.Challenge))
+    print("Well Done you Completed a Quest of Challenge Rating " .. tostring(self.Challenge))
 end
 
-local Quests = {
-    MessageQuest = QuestFormat:new(nil, 1, "Greet the Server", "Say hello to everyone in OOC (Out of Character) Chat using // or /ooc", "Send 1 message in OOC",
-     "PlayerSay", string.find(text:lower(), text, "//") )
+BaseQuest = QuestFormat:new()
 
+QuestList {
+
+    MessageQuest = BaseQuest:new(nil, 1, "Greet the Server", "Say hello to everyone in OOC (Out of Character) Chat using // or /ooc", "Send 1 message in OOC")
 
 }
 
+function Quests:new (o)
+    o = o or {}   -- create object if user does not provide one
+    setmetatable(o, self)
+    self.__index = self
+    return o
+  end
 
 
 function Quests:Assaign(Quest1, Quest2, Quest3, Quest4, Quest5, Quest6, Challenge, Type)
-    print("Assaigning Quests with a challenge of " .. tostring(Challenge))
+    print("Assaigning " .. tostring(Type) .. " Quests with a challenge of " .. tostring(Challenge))
     if Type == "Daily" then
-        print("Assaigning Quests" .. Type)
-        Quest1 = Quests.MessageQuest
-        return Quest1
+        print("Assaigning Quests " .. Type)
+
+        print(MessageQuest)
+
+        Quest1 = QuestList.MessageQuest
+        Quest2 = QuestList.MessageQuest
+        Quest3 = QuestList.MessageQuest
+        Quest4 = QuestList.MessageQuest
+
+        print(Quest3:Get("Title"))
+
+        return Quest1, Quest2, Quest3, Quest4
     elseif Type == "Weekly" then
         print("Assaigning Quests" .. Type)
     end

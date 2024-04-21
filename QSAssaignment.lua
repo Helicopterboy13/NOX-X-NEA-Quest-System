@@ -1,100 +1,230 @@
-Quests = Quests or {}
-QuestFormat = QuestFormat or {}
+if SERVER then
 
-function QuestFormat:new(o, Challenge, Title, Description, Condition)
-    o = o or {}
-    setmetatable(o, self)
-    self.__index = self
-    self.Progress = 0
-    self.Challenge = Challenge
-    self.Title = Title
-    self.Description = Description
-    self.Condition = Condition
-    return o
-end
+    Quests = Quests or {}
+    QuestFormat = QuestFormat or {}
     
-function QuestFormat:Get(Target)
-    if Target == "Title" then
-        return self.Title
-    elseif Target == "Description" then
-        return self.Description
-    elseif Target == "Progress" then
-        return self.Progress
-    elseif Target == "Challenge" then
-        return self.Challenge
+    QSCRC = {1000, 2500, 5000, 10000, 20000}
+    QSCRXP = {1000, 2500, 5000, 10000, 20000}
+
+    QuestTypes = {
+        "ChatMessage",
+        "NPCKill",
+        "PlayerKill",
+    }
+
+    QSChallengeDecayRate = 0.8
+    QSChallengeGrowthRate = 0.1
+
+    util.AddNetworkString("QSDQAssaignmentCall")
+    util.AddNetworkString("QSDQAssaignmentReturn")
+    util.AddNetworkString("QSMenuCaller")
+    util.AddNetworkString("QSStartQuestTracking")
+    util.AddNetworkString("QSEndQuestTracking")
+    util.AddNetworkString("QSIncrementQuestTracking")
+    util.AddNetworkString("QSQuestCompleted")
+    util.AddNetworkString("QSChallengeUpdate")
+    util.AddNetworkString("QSDailyReroll")
+
+    hook.Add("PlayerSay", "QuestMenuCall", function(ply,text)
+        if string.find(text:lower(), "!quest") then
+            net.Start("QSMenuCaller")
+            net.Send(ply) -- Local Player --> Sends the local player the net msg to open the menu
+        end
+    end)
+
+    function Quests:Assaign(Challenge, Type, DupeCheck, DupeLength) -- Needs structure generated
+        if Type == "Daily" then
+    
+            local AssaignDaily = function(Challenge)
+                
+                return QSQuestList[math.random(8)]
+
+            end
+
+            local QSDQuest = AssaignDaily(Challenge)
+            local i = 1
+            while i <= DupeLength do
+                if DupeCheck[i] == QSDQuest[2] then
+                    i = 0
+                    QSDQuest = AssaignDaily(Challenge)
+                    
+                end
+                i = i +1
+            end
+            return QSDQuest
+            
+        elseif Type == "Weekly" then
+            print("Assaigning Quests" .. Type)
+        end
     end
-end
 
-function QuestFormat:Increment()
-    if self.Progress == -1 then
-        QuestFormat:Remove()
+    net.Receive("QSDQAssaignmentCall", function(len, ply)
+        local QSType = net.ReadString()
+        local QSMaxDaily = net.ReadInt(4)
+        local QSDailyRefresh = false
+        local QSDupeCheck = {}
+        local QSDupeLength = 0
+        local CurrentDate = os.date( "!%x", os.time() )
+        local QSDCompleted = ply:GetPData("QSDCompleted", 0 )
+        local QSPlayerLastConnect = ply:GetPData( "QSLastConnected", 0 )
+        local QSChallenge = ply:GetPData( "QSChallenge", 0 ) * QSChallengeDecayRate
 
-    elseif self.Progress >= self.Req then
-        self.Progress = -1
-        QuestFormat:Remove()
-        print("Completed: " .. self.Title)
-        QuestFormat:Completed()
+        local QSDQList = ply:GetPData("QSDQList", nil )
 
-    else
-        self.Progress = self.Progress + 1
-        print("Progress made on: " .. self.Title)
+        ply:SetPData( "QSChallenge", QSChallenge)
+
+        if QSPlayerLastConnect ~= CurrentDate then -- QSPlayerLastConnect ~= CurrentDate
+            QSDailyRefresh = true
+            ply:SetPData( "QSDCompleted", 0 )
+            QSDCompleted = 0
+            QSDQList = nil
+            ply:SetPData( "QSLastConnected", CurrentDate )
+        end
+
+        net.Start("QSDQAssaignmentReturn")
+        net.WriteFloat(QSChallenge)
+        net.WriteBool(QSDailyRefresh)
+        net.WriteInt(QSDCompleted, 4)
+
+        if QSDQList then
+
+            QSDQList = util.JSONToTable(QSDQList)
+
+            for i = 1, QSMaxDaily do
+                if QSDQList[i][10] then
+                    QSDupeCheck[QSDupeLength + 1] = QSDQList[i][2]
+                    QSDupeLength = QSDupeLength + 1
+                    net.WriteTable(QSDQList[i], true)
+                end
+            end
+
+            for i = 1, QSMaxDaily do
+                if not QSDQList[i][10] then
+                    local QSDQ = Quests:Assaign(QSChallenge, QSType, QSDupeCheck, QSDupeLength)
+                    QSDupeCheck[QSDupeLength + 1] = QSDQ[2]
+                    QSDupeLength = QSDupeLength + 1
+                    net.WriteTable(QSDQ, true)
+
+                    QSDQList[i] = QSDQ
+                end
+            end
+        else
+            QSDQList = {}
+            for i = 1, QSMaxDaily do
+            
+                local QSDQ = Quests:Assaign(QSChallenge, QSType, QSDupeCheck, QSDupeLength)
+                QSDupeCheck[i] = QSDQ[2]
+                QSDupeLength = QSDupeLength + 1
+                net.WriteTable(QSDQ, true)
+
+                QSDQList[i] = {QSDQ[1], QSDQ[2], false}
+            end
+        end 
+        
+        ply:SetPData("QSDQList", util.TableToJSON(QSDQList))
+
+        net.Send(ply)
+        print("Give back Quests")
+    end)
+
+    net.Receive("QSStartQuestTracking", function(len, ply)
+        print("Recieved ask to start tracking")
+        local QTitle = net.ReadString()
+        local QType = net.ReadString()
+        local QTarget = net.ReadString()
+
+        if QType == "ChatMessage" then
+            hook.Add("PlayerSay", ply:Nick() .. QTitle, function(ply,text)
+                if string.find(text:lower(), QTarget) then
+                    net.Start("QSIncrementQuestTracking")
+                    net.WriteString(QTitle)
+                    net.Send(ply) -- Local Player --> Sends the local player the net msg
+                end
+            end)
+        end
+    end)
+
+    net.Receive("QSEndQuestTracking", function(len, ply)
+        local QTitle = net.ReadString()
+        local QType = net.ReadString()
+
+        if QType == "ChatMessage" then
+            hook.Remove("PlayerSay", ply:Nick() .. QTitle)
+            
+        end
+    end)
+
+    net.Receive("QSQuestCompleted", function(len, ply)
+        local CQTitle = net.ReadString()
+        local QSMaxDaily = net.ReadInt(4)
+        local QSDCompleted = ply:GetPData("QSDCompleted", 0)
+        local QSChallenge = ply:GetPData( "QSChallenge", 0 )
+        local QSDQList = util.JSONToTable(ply:GetPData("QSDQList", nil))
+        for i = 1, QSMaxDaily do
+            if QSDQList[i][2] == CQTitle then
+                QSDQList[i][10] = true
+                QSChallenge = QSChallenge + QSChallengeGrowthRate * QSDQList[i][1]
+                ply:SetPData( "QSChallenge", QSChallenge )
+            end
+        end
+
+        ply:SetPData("QSDQList", util.TableToJSON(QSDQList))
+        ply:SetPData( "QSDCompleted", ply:GetPData( "QSDCompleted", 0 ) + 1)
+        net.Start("QSChallengeUpdate")
+        net.WriteFloat(QSChallenge)
+        net.Send(ply)
+
+        if QSDCompleted == QSMaxDaily then
+            print("BIG BOI WELL DONE")
+        end
+
+        -- Give credits and give XP
+
+    end)
+
+    QuestFormat.__index = QuestFormat
+
+    function QuestFormat:new(o, Challenge, Title, Description, Condition, Goal, QType, QTarget)
+        o = {
+        Challenge,
+        Title,
+        Description,
+        Condition,
+        Goal,
+        QSCRC[Challenge],
+        QSCRXP[Challenge],
+        QuestTypes[QType],
+        QTarget,
+        false
+        }
+        setmetatable(o, self)
+        return o
     end
-end
-
-function QuestFormat:Check(ply)
-    if self.conditional == true then
-        QuestFormat:Increment()
+    
+    function Quests:new(o)
+        o = o or {}   -- create object if user does not provide one
+        setmetatable(o, self) 
+        self.__index = self
+        return o
     end
-end
+    
+    QSQuestList = {
+        QuestFormat:new(nil, 1, "Greet the Server", "Say something in OOC using //", "Send 1 message in OOC", 1, 1, "//"),
+        QuestFormat:new(nil, 1, "Greet Those Far away", "Say something over a distance with /y", "Send 1 message with Yell", 1, 1, "/y"),
+        QuestFormat:new(nil, 1, "Greet Those Nearby", "Say something in chat", "Send 1 message in chat", 1, 1, " "),
+        QuestFormat:new(nil, 1, "Greet Those closet to you", "Say something to those close with /w", "Send 1 message with Whispher", 1, 1, "/w"),
+        QuestFormat:new(nil, 2, "Greet the Server 2", "Say something in OOC using // or /ooc", "Send 5 messages in OOC", 5, 1, "//"),
+        QuestFormat:new(nil, 2, "Greet Those Far away 2", "Say something over a distance with /y", "Send 5 messages with Yell", 5, 1, "/y"),
+        QuestFormat:new(nil, 2, "Greet Those Nearby 2", "Say something in chat", "Send 5 messages in chat", 5, 1, " "),
+        QuestFormat:new(nil, 2, "Greet Those closet to you 2", "Say something to those close with /w", "Send 5 messages with Whispher", 5, 1, "/w")
+    }
 
-function QuestFormat:Activate() 
-    hook.add(self.Condition, "IncrementProgress", QuestFormat:Check(ply))
-end
-
-function QuestFormat:Remove()
-    hook.remove(self.Condition, "IncrementProgress")
-end
-
-function QuestFormat:Completed()
-    print("Well Done you Completed a Quest of Challenge Rating " .. tostring(self.Challenge))
-end
-
-BaseQuest = QuestFormat:new()
-
-QuestList {
-
-    MessageQuest = BaseQuest:new(nil, 1, "Greet the Server", "Say hello to everyone in OOC (Out of Character) Chat using // or /ooc", "Send 1 message in OOC")
-
-}
-
-function Quests:new (o)
-    o = o or {}   -- create object if user does not provide one
-    setmetatable(o, self)
-    self.__index = self
-    return o
-  end
-
-
-function Quests:Assaign(Quest1, Quest2, Quest3, Quest4, Quest5, Quest6, Challenge, Type)
-    print("Assaigning " .. tostring(Type) .. " Quests with a challenge of " .. tostring(Challenge))
-    if Type == "Daily" then
-        print("Assaigning Quests " .. Type)
-
-        print(MessageQuest)
-
-        Quest1 = QuestList.MessageQuest
-        Quest2 = QuestList.MessageQuest
-        Quest3 = QuestList.MessageQuest
-        Quest4 = QuestList.MessageQuest
-
-        print(Quest3:Get("Title"))
-
-        return Quest1, Quest2, Quest3, Quest4
-    elseif Type == "Weekly" then
-        print("Assaigning Quests" .. Type)
+    QSChallengeLists = {}
+    for i =1, #QSCRC do
+        QSChallengeLists[i] = {} 
     end
-end
+    for i = 1, #QSQuestList do
+        QSChallengeLists[QSQuestList[i][1]][#QSChallengeLists[QSQuestList[i][1]]] = QSQuestList[i]
+    end
 
-function Quests:Test()
-    print("CrossCall Works")
 end

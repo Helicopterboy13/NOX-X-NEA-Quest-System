@@ -6,6 +6,11 @@ if SERVER then
     QSCRC = {1000, 2500, 5000, 10000, 20000}
     QSCRXP = {1000, 2500, 5000, 10000, 20000}
 
+    QSDRerollCost = 25000
+    QSWRerollCost = 100000
+    QSMaxDaily = 4
+    QSMaxWeekly = 6
+
     QuestTypes = {
         "ChatMessage",
         "NPCKill",
@@ -60,7 +65,6 @@ if SERVER then
 
     net.Receive("QSDQAssaignmentCall", function(len, ply)
         local QSType = net.ReadString()
-        local QSMaxDaily = net.ReadInt(4)
         local QSDailyRefresh = false
         local QSDupeCheck = {}
         local QSDupeLength = 0
@@ -69,7 +73,7 @@ if SERVER then
         local QSPlayerLastConnect = ply:GetPData( "QSLastConnected", 0 )
         local QSChallenge = ply:GetPData( "QSChallenge", 0 ) * QSChallengeDecayRate
 
-        local QSDQList = ply:GetPData("QSDQList", nil )
+        local QSDQList = util.JSONToTable(ply:GetPData("QSDQList", nil ))
 
         ply:SetPData( "QSChallenge", QSChallenge)
 
@@ -83,23 +87,27 @@ if SERVER then
 
         net.Start("QSDQAssaignmentReturn")
         net.WriteFloat(QSChallenge)
+        net.WriteInt(QSDRerollCost, 24)
+        net.WriteInt(QSWRerollCost, 24)
+        net.WriteInt(QSMaxDaily, 4)
+        net.WriteInt(QSMaxWeekly, 4)
         net.WriteBool(QSDailyRefresh)
         net.WriteInt(QSDCompleted, 4)
 
         if QSDQList then
 
-            QSDQList = util.JSONToTable(QSDQList)
-
             for i = 1, QSMaxDaily do
-                if QSDQList[i][10] then
+                if QSDQList[i][10] ~= "Pending" then
                     QSDupeCheck[QSDupeLength + 1] = QSDQList[i][2]
                     QSDupeLength = QSDupeLength + 1
+                    print("Progress Sent As: ")
+                    print(QSDQList[i][11])
                     net.WriteTable(QSDQList[i], true)
                 end
             end
 
             for i = 1, QSMaxDaily do
-                if not QSDQList[i][10] then
+                if QSDQList[i][10] == "Pending" then
                     local QSDQ = Quests:Assaign(QSChallenge, QSType, QSDupeCheck, QSDupeLength)
                     QSDupeCheck[QSDupeLength + 1] = QSDQ[2]
                     QSDupeLength = QSDupeLength + 1
@@ -111,34 +119,49 @@ if SERVER then
         else
             QSDQList = {}
             for i = 1, QSMaxDaily do
-            
+
                 local QSDQ = Quests:Assaign(QSChallenge, QSType, QSDupeCheck, QSDupeLength)
                 QSDupeCheck[i] = QSDQ[2]
                 QSDupeLength = QSDupeLength + 1
                 net.WriteTable(QSDQ, true)
 
-                QSDQList[i] = {QSDQ[1], QSDQ[2], false}
+                QSDQList[i] = QSDQ
             end
-        end 
-        
+        end
         ply:SetPData("QSDQList", util.TableToJSON(QSDQList))
 
         net.Send(ply)
         print("Give back Quests")
     end)
 
+    QSQIncremented = function(ply, QTitle)
+        
+        local QSDQList = util.JSONToTable(ply:GetPData("QSDQList", nil))
+        for i = 1, QSMaxDaily do
+            if QSDQList[i][2] == QTitle then
+                QSDQList[i][10] = "Base"
+                print("Set new state")
+                print(QSDQList[i][11])
+                QSDQList[i][11] = QSDQList[i][11] + 1
+                print("Set new Progress")
+            end
+        end
+        ply:SetPData("QSDQList", util.TableToJSON(QSDQList))
+
+        net.Start("QSIncrementQuestTracking")
+        net.WriteString(QTitle)
+        net.Send(ply) -- Local Player --> Sends the local player the net msg
+    end
+
     net.Receive("QSStartQuestTracking", function(len, ply)
-        print("Recieved ask to start tracking")
         local QTitle = net.ReadString()
         local QType = net.ReadString()
         local QTarget = net.ReadString()
-
+        
         if QType == "ChatMessage" then
-            hook.Add("PlayerSay", ply:Nick() .. QTitle, function(ply,text)
+            hook.Add("PlayerSay", ply:Nick() .. QTitle, function(ply, text)
                 if string.find(text:lower(), QTarget) then
-                    net.Start("QSIncrementQuestTracking")
-                    net.WriteString(QTitle)
-                    net.Send(ply) -- Local Player --> Sends the local player the net msg
+                    QSQIncremented(ply, QTitle)
                 end
             end)
         end
@@ -162,7 +185,8 @@ if SERVER then
         local QSDQList = util.JSONToTable(ply:GetPData("QSDQList", nil))
         for i = 1, QSMaxDaily do
             if QSDQList[i][2] == CQTitle then
-                QSDQList[i][10] = true
+                QSDQList[i][10] = "Claimed"
+                QSDQList[i][11] = QSDQList[i][5]
                 QSChallenge = QSChallenge + QSChallengeGrowthRate * QSDQList[i][1]
                 ply:SetPData( "QSChallenge", QSChallenge )
             end
@@ -195,7 +219,8 @@ if SERVER then
         QSCRXP[Challenge],
         QuestTypes[QType],
         QTarget,
-        false
+        "Pending",
+        0
         }
         setmetatable(o, self)
         return o
@@ -203,7 +228,7 @@ if SERVER then
     
     function Quests:new(o)
         o = o or {}   -- create object if user does not provide one
-        setmetatable(o, self) 
+        setmetatable(o, self)
         self.__index = self
         return o
     end

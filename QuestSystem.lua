@@ -6,28 +6,20 @@ if CLIENT then
 
     local QSType = "Daily"
     local QSChallenge = nil
+    local DRerollCost = nil
+    local WRerollCost = nil
+    local QSMaxDaily = nil
+    local QSMaxWeekly = nil
     local QSD = {}
     local QSMenuOpen = false
     local QSDailyRefresh = false
-    local QSDailyCompleted = 0
+    local QSDailyCompleted = nil
 
-    local QSMaxDaily = 4
     local QColour = Color(80,15,15,245)
     local TextColor = Color(180,40,40)
-    local DRerollCost = 50000
-    local WRerollCost = 250000
 
-    function QuestFormat:new(o, QSChallenge, Title, Description, Condition, Goal, Credits, Experience, QSQType, QuestTarget, State)
-        if State then
-            State = "Claimed"
-            Progress = Goal
-        else
-            State = "Pending"
-            Progress = 0
-        end
-        print(State)
+    function QuestFormat:new(o, QSChallenge, Title, Description, Condition, Goal, Credits, Experience, QSQType, QuestTarget, State, QProgress)
         o = {
-        Progress = Progress,
         QSChallenge = QSChallenge,
         Title = Title,
         Description = Description,
@@ -37,10 +29,24 @@ if CLIENT then
         Goal = Goal,
         QSType = QSQType,
         QTarget = QuestTarget,
-        QState = State
+        QState = State,
+        Progress = QProgress
         }
-        
+
+        print("Progress recieved as: ")
+        print(o.Progress)
+
         setmetatable(o, self)
+
+        if o.QState == "Base" then
+            net.Start("QSStartQuestTracking")
+            net.WriteString(o.Title)
+            net.WriteString(o.QSType)
+            net.WriteString(o.QTarget)
+            net.SendToServer()
+            print("Call for Quest Activate")
+        end
+
         return o
     end
 
@@ -95,7 +101,7 @@ if CLIENT then
         end
     end
     
-    function QuestFormat:Activate() 
+    function QuestFormat:Activate()
         net.Start("QSStartQuestTracking")
         net.WriteString(self.Title)
         net.WriteString(self.QSType)
@@ -133,13 +139,19 @@ if CLIENT then
 
     net.Receive("QSDQAssaignmentReturn", function()
         QSChallenge = net.ReadFloat()
+        DRerollCost = net.ReadInt(24)
+        WRerollCost = net.ReadInt(24)
+        QSMaxDaily = net.ReadInt(4)
+        QSMaxWeekly = net.ReadInt(4)
         QSDailyRefresh = net.ReadBool()
         QSDailyCompleted = net.ReadInt(4)
         if QSDailyRefresh then print("Need a Refresh") end
 
         for i = 1, QSMaxDaily do
             local QSDT = net.ReadTable(true)
-            QSD[i] = QuestFormat:new(nil, QSDT[1], QSDT[2], QSDT[3], QSDT[4], QSDT[5], QSDT[6], QSDT[7], QSDT[8], QSDT[9], QSDT[10])
+            print("Recieving Progress of: ")
+            print(QSDT[11])
+            QSD[i] = QuestFormat:new(nil, QSDT[1], QSDT[2], QSDT[3], QSDT[4], QSDT[5], QSDT[6], QSDT[7], QSDT[8], QSDT[9], QSDT[10], QSDT[11])
         end
 
         if QSMenuOpen then
@@ -152,7 +164,6 @@ if CLIENT then
         if not QSChallenge then
             net.Start("QSDQAssaignmentCall")
             net.WriteString(QSType)
-            net.WriteInt(QSMaxDaily, 4)
             net.SendToServer()
         else
             QSMenuCall(QSType)
@@ -239,7 +250,9 @@ if CLIENT then
             QuestsCompleted:SetMax(QSMaxDaily)
             QuestsCompleted:SetValue(QSDailyCompleted)
 
-            if os.date( "!%H") * 60 + os.date( "!%M") + os.date( "!%S")/60 >= 1440 then
+            CurrentTime = os.date( "!%H") * 60 + os.date( "!%M") + os.date( "!%S")/60
+
+            if CurrentTime >= 1440 then
                 net.Start("QSDQAssaignmentCall")
                 net.WriteString(QSType)
                 net.WriteInt(QSMaxDaily, 4)
@@ -251,7 +264,7 @@ if CLIENT then
             TimeLeft:SetPos( FrameW*0.14, FrameH*0.2 )
             TimeLeft:SetMin(0)
             TimeLeft:SetMax(1440)
-            TimeLeft:SetValue(os.date( "!%H") * 60 + os.date( "!%M") + os.date( "!%S")/60)
+            TimeLeft:SetValue(CurrentTime)
 
 
 

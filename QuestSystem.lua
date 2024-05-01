@@ -6,17 +6,389 @@ if CLIENT then
 
     local QSType = "Daily"
     local QSChallenge = nil
-    local DRerollCost = nil
+    local DRerollCost = 100000
     local WRerollCost = nil
-    local QSMaxDaily = nil
+    local QSMaxDaily = 4
     local QSMaxWeekly = nil
     local QSD = {}
     local QSMenuOpen = false
     local QSDailyRefresh = false
-    local QSDailyCompleted = nil
+    local QSDailyCompleted = 0
 
-    local QColour = Color(80,15,15,245)
-    local TextColor = Color(180,40,40)
+
+
+
+
+
+
+
+
+
+
+
+    local QSCUI = QSCUI or {
+        FWidth = ScrW(),
+        FHeight = ScrH()
+    }
+    local QSCUIPanel = {}
+    local QSCUIMenu = {}
+    local QSCUINavBar = {}
+    local QSCUIDaily = {}
+    QSCUI.Tests = {}
+
+    vgui.Register("GSCUI.Panel", QSCUIPanel, "EditablePanel")
+    vgui.Register("GSCUI.Menu", QSCUIMenu, "GSCUI.Panel")
+    vgui.Register("GSCUI.NavBar", QSCUINavBar)
+    vgui.Register("GSCUI.Daily", QSCUIDaily)
+
+    function QSCUI.CreateFont(name, size, weight)
+        surface.CreateFont("QSFont." .. name, {
+            font = "Tahoma",
+            size = size or 16,
+            weight = weight or 500
+        } )
+    end
+
+    QSCUI.Tests.Frame = function()
+        local frame = vgui.Create("GSCUI.Menu")
+        frame:SetSize(QSCUI.UISizing.Menu.Width, QSCUI.UISizing.Menu.Height)
+        frame:Center()
+        frame:MakePopup()
+        frame:SetTitle("Noxifer Quest System")
+    end
+
+    QSCUI.Design = {
+        PColour = Color(80,15,15,245),
+        PMSColor = Color(180,115,115,245),
+        SColor = Color(80,155,15,245),
+        MColor = Color(100,100,100,245),
+        BColor = Color(90,75,175,215),
+        PTColor = Color(180,40,40),
+        STColor = Color(180,55,115,245),
+        STAColor = Color(220,55,215,245),
+        CloseButton = Color(160,20,20),
+
+        Text = {
+            Title = Color(35,35,35)
+        }
+
+    }
+    QSCUI.UISizing = {
+
+        Menu = {
+            Height = QSCUI.FHeight*3/4,
+            Width = QSCUI.FWidth*2/3
+        },
+
+        TBar = {
+            Height = QSCUI.FHeight/20,
+            Margin = QSCUI.FWidth/180,
+            Font = QSCUI.FHeight/60 + QSCUI.FWidth/60
+        },
+
+        TMNBar = {
+            Height = QSCUI.FHeight/200
+        },
+
+        QSCUINavBar = {
+            Height = QSCUI.FHeight/25,
+            Margin = QSCUI.FWidth/250,
+            Font = QSCUI.FHeight/100 + QSCUI.FWidth / 100,
+            AccentHeight = QSCUI.FHeight/300
+        },
+
+        Daily = {
+            Height = QSCUI.FHeight/16,
+            Width = QSCUI.FHeight/18,
+            Font = QSCUI.FHeight/80 + QSCUI.FWidth / 80,
+            Margin = QSCUI.FWidth / 45,
+            Reroll = {
+                Font = QSCUI.FHeight/180 + QSCUI.FWidth / 180,
+                Margin = QSCUI.FWidth / 75
+            }
+        }
+    }
+
+    QSCUI.CreateFont("TBar", QSCUI.UISizing.TBar.Font, QSCUI.UISizing.TBar.Font*2)
+    QSCUI.CreateFont("QSCUINavBar", QSCUI.UISizing.QSCUINavBar.Font, QSCUI.UISizing.QSCUINavBar.Font*5)
+    QSCUI.CreateFont("DTBar", QSCUI.UISizing.Daily.Font, QSCUI.UISizing.Daily.Font*2)
+    QSCUI.CreateFont("DBBar", QSCUI.UISizing.Daily.Font, QSCUI.UISizing.Daily.Reroll.Font*2)
+
+    function QSCUIMenu:Init()
+        self.NavBar = self:Add("GSCUI.NavBar")
+        self.NavBar:Dock(TOP)
+        self.NavBar:SetParent(self)
+
+        self.NavBar:AddTab("Daily", "GSCUI.Daily")
+        self.NavBar:AddTab("Weekly", "DPanel")
+        self.NavBar:AddTab("Monthly", "DButton")
+        self.NavBar:AddTab("Lifetime")
+        self.NavBar:AddTab("Help")
+    end
+
+    function QSCUIPanel:Init()
+        self.TBar = self:Add("Panel")
+        self.TBar:Dock(TOP)
+        self.TBar.Paint = function(pn1, w, h)
+            draw.RoundedBox(6, 0, 0, w, h, QSCUI.Design.PColour, true, false, false, true)
+        end
+
+        self.TBar.CloseButton = self.TBar:Add("DButton")
+        self.TBar.CloseButton:Dock(RIGHT)
+        self.TBar.CloseButton.DoClick = function(pn1)
+            self:Remove()
+        end
+        self.TBar.CloseButton:SetText("X")
+
+        self.TBar.Title = self.TBar:Add("DLabel")
+        self.TBar.Title:Dock(LEFT)
+        self.TBar.Title:SetFont("QSFont.TBar")
+        self.TBar.Title:SetTextColor(QSCUI.Design.PTColor)
+        self.TBar.Title:SetTextInset(QSCUI.UISizing.TBar.Margin, 0)
+
+        self.TMNBar = self:Add("Panel")
+        self.TMNBar:Dock(TOP)
+        function self.TMNBar:Paint(w, h)
+            surface.SetDrawColor(QSCUI.Design.PMSColor)
+            surface.DrawRect(0, 0, w, h)
+        end
+    end
+
+    function QSCUINavBar:Init()
+        self.Buttons = {}
+        self.Panels = {}
+        self.ActiveID = nil
+    end
+
+    function QSCUINavBar:Paint(w, h)
+        surface.SetDrawColor(QSCUI.Design.SColor)
+        surface.DrawRect(0,  0, w, h)
+    end
+
+    function QSCUINavBar:AddTab(Name, Panel)
+        local i = #self.Buttons + 1
+        self.Buttons[i] = self:Add("DButton")
+        local Button = self.Buttons[i]
+        Button:Dock(LEFT)
+        Button.ID = i
+        Button:SetText(Name)
+        Button:SetFont("QSFont.QSCUINavBar")
+        Button:SetTextColor(QSCUI.Design.STColor)
+        Button.Paint = function(pn1, w, h)
+            if (self.ActiveID == pn1.ID) then
+                surface.SetDrawColor(QSCUI.Design.STAColor)
+                surface.DrawRect(0, h - QSCUI.UISizing.QSCUINavBar.AccentHeight, w, QSCUI.UISizing.QSCUINavBar.AccentHeight)
+            end
+        end
+        Button:SizeToContents(QSCUI.UISizing.QSCUINavBar.Margin*2)
+        Button.DoClick = function(pn1)
+            self:SetActive(pn1.ID)
+        end
+
+        self.Panels[i] = self:GetParent():Add(Panel or "DPanel")
+        Panel = self.Panels[i]
+        Panel:Dock(FILL)
+        Panel:SetVisible(false)
+    end
+
+    function QSCUINavBar:SetActive(ID)
+        local Button = self.Buttons[ID]
+        if (!IsValid(Button)) then return end
+        local ActiveButton = self.Buttons[self.ActiveID]
+        if (IsValid(ActiveButton)) then
+            ActiveButton:SetTextColor(QSCUI.Design.STColor)
+            local ActivePanel = self.Panels[self.ActiveID]
+            if IsValid(ActivePanel) then
+                ActivePanel:SetVisible(false)
+            end
+
+        end
+        self.ActiveID = ID
+        Button:SetTextColor(QSCUI.Design.STAColor)
+        local Panel = self.Panels[ID]
+        Panel:SetVisible(true)
+    end
+
+    function QSCUIPanel:SetTitle(Text)
+        self.TBar.Title:SetText(Text)
+        self.TBar.Title:SizeToContents()
+    end
+
+    function QSCUIPanel:PerformLayout(w, h)
+        self.TBar:SetTall(QSCUI.UISizing.TBar.Height)
+        self.TBar.CloseButton:SetWide(self.TBar:GetTall())
+        self.TMNBar:SetTall(QSCUI.UISizing.TMNBar.Height)
+    end
+
+    function QSCUIMenu:PerformLayout(w, h)
+        self.BaseClass.PerformLayout(self, w, h)
+
+        self.NavBar:SetTall(QSCUI.UISizing.QSCUINavBar.Height)
+        for i = 1, #self.NavBar.Buttons do
+        self.NavBar.Buttons[i]:SetWide(QSCUI.UISizing.Menu.Width/#self.NavBar.Buttons)
+        end
+    end
+
+    function QSCUIPanel:Paint(w, h)
+        draw.RoundedBox(6, 0, 0, QSCUI.UISizing.Menu.Width, QSCUI.UISizing.Menu.Height, QSCUI.Design.BColor)
+    end
+
+
+
+    function QSCUIDaily:Init()
+
+        CurrentTime = os.date( "!%H") * 60 + os.date( "!%M") + os.date( "!%S")/60
+        if CurrentTime >= 1440 then
+            net.Start("QSDQAssaignmentCall")
+            net.WriteString(QSType)
+            net.WriteInt(QSMaxDaily, 4)
+            net.SendToServer()
+        end
+
+        self.DTBar = self:Add("Panel")
+        self.DTBar:Dock(TOP)
+        function self.DTBar:Paint(w, h)
+            surface.SetDrawColor(QSCUI.Design.MColor)
+            surface.DrawRect(0, 0, w, h)
+        end
+        self.DTBar.TTR = self.DTBar:Add("Panel")
+        self.DTBar.TTR:Dock(LEFT)
+        self.DTBar.TTR.Title = self.DTBar.TTR:Add("DLabel")
+        self.DTBar.TTR.Title:Dock(LEFT)
+        self.DTBar.TTR.Title:SetText("Time Untill Reset: ")
+        self.DTBar.TTR.Title:SetFont("QSFont.DTBar")
+        self.DTBar.TTR.Title:SetTextInset(QSCUI.UISizing.Daily.Margin, 0)
+        self.DTBar.TTR.Title:SetTextColor(QSCUI.Design.PTColor)
+        self.DTBar.TTR.Title:SizeToContents()
+        self.DTBar.TTR.Time = self.DTBar.TTR:Add("DLabel")
+        self.DTBar.TTR.Time:Dock(FILL)
+        self.DTBar.TTR.Time:SetText(23 - os.date( "!%H") .. "H " .. 60 - os.date( "!%M") .. "M")
+        self.DTBar.TTR.Time:SetFont("QSFont.DTBar")
+        self.DTBar.TTR.Time:SetTextColor(QSCUI.Design.PTColor)
+        self.DTBar.TTR.Time:SizeToContents()
+
+        self.DTBar.CRN = self.DTBar:Add("Panel")
+        self.DTBar.CRN:Dock(RIGHT)
+        self.DTBar.CRN.Title = self.DTBar.CRN:Add("DLabel")
+        self.DTBar.CRN.Title:Dock(LEFT)
+        self.DTBar.CRN.Title:SetText("Challenge Rating: ")
+        self.DTBar.CRN.Title:SetFont("QSFont.DTBar")
+        self.DTBar.CRN.Title:SetTextInset(QSCUI.UISizing.Daily.Margin*0.8, 0)
+        self.DTBar.CRN.Title:SetTextColor(QSCUI.Design.PTColor)
+        self.DTBar.CRN.Title:SizeToContents()
+        self.DTBar.CRN.Challenge = self.DTBar.CRN:Add("DLabel")
+        self.DTBar.CRN.Challenge:Dock(FILL)
+        self.DTBar.CRN.Challenge:SetText(string.format("%.2f", tostring(6.77)))
+        self.DTBar.CRN.Challenge:SetFont("QSFont.DTBar")
+        self.DTBar.CRN.Challenge:SetTextColor(QSCUI.Design.PTColor)
+        self.DTBar.CRN.Challenge:SizeToContents()
+
+        self.DTBar.QCB = self.DTBar:Add("Panel")
+        self.DTBar.QCB:Dock(FILL)
+        self.DTBar.QCB.Title = self.DTBar.QCB:Add("DLabel")
+        self.DTBar.QCB.Title:Dock(LEFT)
+        self.DTBar.QCB.Title:SetText("Quests Completed: ")
+        self.DTBar.QCB.Title:SetFont("QSFont.DTBar")
+        self.DTBar.QCB.Title:SetTextInset(QSCUI.UISizing.Daily.Margin, 0)
+        self.DTBar.QCB.Title:SetTextColor(QSCUI.Design.PTColor)
+        self.DTBar.QCB.Title:SizeToContents()
+        self.DTBar.QCB.Challenge = self.DTBar.QCB:Add("DLabel")
+        self.DTBar.QCB.Challenge:Dock(FILL)
+        self.DTBar.QCB.Challenge:SetText(QSDailyCompleted .. "/" ..  QSMaxDaily)
+        self.DTBar.QCB.Challenge:SetFont("QSFont.DTBar")
+        self.DTBar.QCB.Challenge:SetTextColor(QSCUI.Design.PTColor)
+        self.DTBar.QCB.Challenge:SizeToContents()
+
+        self.DBBar = self:Add("Panel")
+        self.DBBar:Dock(BOTTOM)
+        function self.DBBar:Paint(w, h)
+            surface.SetDrawColor(QSCUI.Design.MColor)
+            surface.DrawRect(0, 0, w, h)
+        end
+        self.DBBar.RButton = self.DBBar:Add("DButton")
+        self.DBBar.RButton:Dock(RIGHT)
+        self.DBBar.RButton:SetText("Reroll")
+        self.DBBar.RButton:SetFont("QSFont.DBBar")
+        self.DBBar.RButton:SetTextColor(QSCUI.Design.PTColor)
+        self.DBBar.RButton.DoClick = function()
+            QSReroll()
+        end
+        self.DBBar.RText = self.DBBar:Add("DLabel")
+        self.DBBar.RText:Dock(LEFT)
+        self.DBBar.RText:SetText("Cost To Reroll: " .. tostring(DRerollCost))
+        self.DBBar.RText:SetFont("QSFont.DBBar")
+        self.DBBar.RText:SetTextInset(QSCUI.UISizing.Daily.Reroll.Margin, 0)
+        self.DBBar.RText:SetTextColor(QSCUI.Design.PTColor)
+        self.DBBar.RText:SizeToContents()
+
+        self.DLBar = self:Add("Panel")
+        self.DLBar:Dock(LEFT)
+        function self.DLBar:Paint(w, h)
+            surface.SetDrawColor(QSCUI.Design.MColor)
+            surface.DrawRect(0, 0, w, h)
+        end
+
+        self.DRBar = self:Add("Panel")
+        self.DRBar:Dock(RIGHT)
+        function self.DRBar:Paint(w, h)
+            surface.SetDrawColor(QSCUI.Design.MColor)
+            surface.DrawRect(0, 0, w, h)
+        end
+
+        self.Quests = self:Add("Panel")
+        self.Quests:Dock(FILL)
+        function self.Quests:Paint(w, h)
+            surface.SetDrawColor(QSCUI.Design.MColor)
+            surface.DrawRect(0, 0, w, h)
+        end
+    end
+
+    function QSCUIDaily:PerformLayout(w, h)
+        self.DTBar:SetTall(QSCUI.UISizing.Daily.Height)
+        self.DTBar.TTR:SetWide(QSCUI.UISizing.Menu.Width/3)
+        self.DTBar.CRN:SetWide(QSCUI.UISizing.Menu.Width/3)
+        self.DBBar:SetTall(QSCUI.UISizing.Daily.Height)
+        self.DBBar.RButton:SetWide(QSCUI.UISizing.Menu.Width/5)
+        self.DLBar:SetWide(QSCUI.UISizing.Daily.Width)
+        self.DRBar:SetWide(QSCUI.UISizing.Daily.Width)
+    end
+
+    function QSReroll()
+
+        -- Deduct Credits
+
+        if QSTracking then
+            QSTrackedQuest = nil
+            QSTracking = false
+            QSQuestTracking()
+        end
+
+        local QSQWanted = 0
+
+        for i = 1, QSMaxDaily do
+            if QSD[i]:Get("State") ~= "Claimed" then
+                if QSD[i]:Get("State") == "Active" or QSD[i]:Get("State") == "Base" then
+                    QSD[i]:Remove()
+                end
+                QSQWanted = QSQWanted + 1
+            end
+        end
+        if QSQWanted > 0 then
+            print("Ask for Quests")
+            net.Start("QSDQAssaignmentCall")
+            net.WriteString(QSType)
+            net.WriteInt(QSMaxDaily, 4)
+            net.SendToServer()
+        end
+
+    end
+
+
+
+
+
+
+
 
     function QuestFormat:new(o, QSChallenge, Title, Description, Condition, Goal, Credits, Experience, QSQType, QuestTarget, State, QProgress)
         o = {
@@ -81,14 +453,14 @@ if CLIENT then
             self.QState = NewVal
         end
     end
-    
+
     function QuestFormat:Increment()
         if self.Progress + 1 == self.Goal then
             self.Progress = self.Goal
             self:Remove()
             print("Completed: " .. self.Title)
             self:Completed()
-    
+
         else
             self.Progress = self.Progress + 1
             print("Progress made on: " .. self.Title)
@@ -100,7 +472,7 @@ if CLIENT then
             end
         end
     end
-    
+
     function QuestFormat:Activate()
         net.Start("QSStartQuestTracking")
         net.WriteString(self.Title)
@@ -109,7 +481,7 @@ if CLIENT then
         net.SendToServer()
         print("Call for Quest Activate")
     end
-    
+
     function QuestFormat:Remove()
         net.Start("QSEndQuestTracking")
         net.WriteString(self.Title)
@@ -117,7 +489,7 @@ if CLIENT then
         net.SendToServer()
         print("Call for Quest End")
     end
-    
+
     function QuestFormat:Completed()
         print("Well Done you Completed a Quest of QSChallenge Rating " .. tostring(self.QSChallenge))
         self.QState = "Claimed"
@@ -161,13 +533,16 @@ if CLIENT then
     end)
 
     net.Receive("QSMenuCaller",function()
-        if not QSChallenge then
+        --[[if not QSChallenge then
             net.Start("QSDQAssaignmentCall")
             net.WriteString(QSType)
             net.SendToServer()
         else
             QSMenuCall(QSType)
-        end
+        end]]
+
+        QSCUI.Tests.Frame()
+
     end)
 
     net.Receive("QSIncrementQuestTracking", function()
@@ -184,62 +559,19 @@ if CLIENT then
         QSChallenge = net.ReadFloat()
     end)
 
-    local QSMenuText = function(QSMenuTab, FrameW, FrameH, frame) -- Text for the main menu, called within the draw function
-        if QSMenuTab == "Daily" then
 
-            draw.SimpleText(
-            "Quests Completed",
-            "contFontHeli",
-            FrameW*0.401,
-            FrameH/5.5, 
-            TextColor,
-            0,
-            1
-            )
 
-            draw.SimpleText(
-            "Minutes Until Reset",
-            "contFontHeli",
-            FrameW*0.138, 
-            FrameH/5.5, 
-            TextColor,
-            0,
-            1
-            )
 
-            draw.SimpleText(
-            "Reroll Price: " .. tostring(DRerollCost), -- Make into 2 different texts, and put on the button
-            "contFontHeli",
-            FrameW*0.4,
-            FrameH*0.85,
-            TextColor,
-            0,
-            1
-            )
 
-            draw.SimpleText(
-            "Challenge Rating",
-            "contFontHeli",
-            FrameW*0.725,
-            FrameH/5.5,
-            TextColor,
-            0,
-            1
-            )
 
-            draw.SimpleText(
-            string.format("%.2f", tostring(QSChallenge)),
-            "TitleFontHeli",
-            FrameW*0.8,
-            FrameH/4.2,
-            TextColor,
-            0,
-            1
-            )
 
-        end
-    end
 
+
+
+
+
+
+--[[
     local QSMenuButtons = function(QSMenuTab, FrameW, FrameH, frame) -- Create buttons and progress bars for the main menu section - outside the draw function
         if QSMenuTab == "Daily" then
 
@@ -576,6 +908,7 @@ if CLIENT then
         QSMenuButtons(QSType, FrameW, FrameH, frame) -- Call the Buttons, draw em as daily
 
     end
+ ]]
 
     function QSQuestTracking(QSTracking, QSTrackedQuest)
         if QSTracking then
@@ -600,7 +933,7 @@ if CLIENT then
                 InnerH = h-FrameH/40
 
                 draw.RoundedBox(5,0,0,w,h,Color(100,50,50,255)) -- Opaque window, grey colour, corner rounding is 5 pixels, Pos set from top right of the 2d frame creation, set to fill the same size of the window
-                
+
                 draw.RoundedBox(5,FrameW/140,FrameH/80,InnerW,InnerH,Color(36,36,36,245)) -- 2nd layer of different colour to create a 4 pixel border on the window, this is main grey, above is border grey
 
                 draw.RoundedBox(0,FrameW/140+1,FrameH/80,InnerW,InnerH/11,Color(150,20,40,245)) -- The Title Box
@@ -682,39 +1015,3 @@ if CLIENT then
         end
     end
 end
-
-surface.CreateFont( "TitleFontHeli", {
-    font = "Orbitron", --  Use the font-name which is shown to you by your operating system Font Viewer, not the file name
-    extended = false,
-    size = ScrH()/20,
-    weight = 500,
-    blursize = 0,
-    scanlines = 0,
-    antialias = true,
-    underline = false,
-    italic = false,
-    strikeout = false,
-    symbol = false,
-    rotary = false,
-    shadow = false,
-    additive = false,
-    outline = false,
-} )
-
-surface.CreateFont( "contFontHeli", {
-    font = "Orbitron", --  Use the font-name which is shown to you by your operating system Font Viewer, not the file name
-    extended = false,
-    size = ScrH()/50,
-    weight = 500,
-    blursize = 0,
-    scanlines = 0,
-    antialias = true,
-    underline = false,
-    italic = false,
-    strikeout = false,
-    symbol = false,
-    rotary = false,
-    shadow = false,
-    additive = false,
-    outline = false,
-} )
